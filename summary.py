@@ -2,9 +2,10 @@ from dotenv import load_dotenv
 from langchain.chains import ReduceDocumentsChain, MapReduceDocumentsChain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.llm import LLMChain
-from langchain_community.chat_models.openai import ChatOpenAI
+
 from langchain_community.document_loaders.pdf import PyPDFLoader
 from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
 from langchain_text_splitters import CharacterTextSplitter
 
 
@@ -14,7 +15,7 @@ load_dotenv()
 # PDF 파일 로드
 loader = PyPDFLoader("assets/2023년_공공데이터_제공_운영실태_평가_편람.pdf")
 document = loader.load()
-document[0].page_content[:200]
+print(document[0].page_content[:200])
 
 # ========== ② 문서분할 ========== #
 
@@ -35,25 +36,29 @@ print(f'총 분할된 도큐먼트 수: {len(split_docs)}')
 # Map 단계에서 처리할 프롬프트 정의
 # 분할된 문서에 적용할 프롬프트 내용을 기입합니다.
 # 여기서 {pages} 변수에는 분할된 문서가 차례대로 대입되니다.
-map_template = """다음은 문서 중 일부 내용입니다
+map_template = """당신은 공공데이터의 운영실태를 평가하는 감독관입니다.
+다음은 공공데이터의 운영실태를 평가하는 문서 중 일부 내용입니다.
 {pages}
-이 문서 목록을 기반으로 평가개요, 평가지표 세부내용, 평가 유의사항으로 요약해 주세요.
+문서를 바탕으로 요약을 만들어 주세요.
 답변:"""
 
 # Map 프롬프트 완성
 map_prompt = PromptTemplate.from_template(map_template)
 
 # Map에서 수행할 LLMChain 정의
-llm = ChatOpenAI(temperature=0,
-                 model_name='gpt-3.5-turbo-0125')
+llm = ChatOpenAI(
+    temperature=0,
+    model_name='gpt-3.5-turbo-0125'
+)
 map_chain = LLMChain(llm=llm, prompt=map_prompt)
 
 # ========== ④ Reduce 단계 ========== #
 
 # Reduce 단계에서 처리할 프롬프트 정의
-reduce_template = """다음은 요약의 집합입니다:
+reduce_template = """당신은 공공데이터의 운영실태를 평가하는 감독관입니다.
+다음은 공공데이터의 운영실태를 평가하는 문서 요약의 집합입니다:
 {doc_summaries}
-이것들을 바탕으로 통합된 요약을 만들어 주세요.
+문서를 바탕으로 평가개요, 평가지표 세부내용, 평가 유의사항을 개괄식으로 요약해 주세요.
 답변:"""
 
 # Reduce 프롬프트 완성
@@ -96,6 +101,6 @@ map_reduce_chain = MapReduceDocumentsChain(
 
 # Map-Reduce 체인 실행
 # 입력: 분할된 도큐먼트(②의 결과물)
-result = map_reduce_chain.run(split_docs)
+result = map_reduce_chain.invoke(split_docs)
 # 요약결과 출력
 print(result)
