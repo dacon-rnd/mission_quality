@@ -10,12 +10,11 @@ pip install pypdf
 pip install python-dotenv
 pip install tiktoken
 pip install streamlit
-pip install PyPDF2
-pip install sentence-transformers
-pip install faiss-cpu
 pip install chromadb
+pip install sentence_transformers
 ```
 * 실행
 ``` 
-streamlit app chatbot.py
+streamlit run summary.py
+streamlit run chatbot.py
 ```

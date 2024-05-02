@@ -2,46 +2,46 @@ import os
 
 import streamlit as st
 
-from PyPDF2 import PdfReader
 from dotenv import load_dotenv
 from langchain_community.document_loaders.pdf import PyPDFLoader
-from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import ConversationalRetrievalChain, RetrievalQA
 from langchain.memory import ConversationBufferWindowMemory
-from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings, HuggingFaceBgeEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 load_dotenv()
-LLM_MODEL = 'gpt-3.5-turbo-0125'
-
-#PDF 문서에서 텍스트를 추출
-def get_pdf_text(pdf_docs):
-    text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text
+LLM_MODEL = 'gpt-4-0125-preview' # 'gpt-3.5-turbo-0125'
 
 #지정된 조건에 따라 주어진 텍스트를 더 작은 덩어리로 분할
 def get_text_chunks(text):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
+    # text_splitter = RecursiveCharacterTextSplitter(
+    #     chunk_size=1000,
+    #     chunk_overlap=200,
+    # )
+    text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+        separator="\n\n",  # 분할기준
+        chunk_size=3000,  # 사이즈
+        chunk_overlap=500,  # 중첩 사이즈
     )
     chunks = text_splitter.split_documents(text)
     return chunks
 
-#주어진 텍스트 청크에 대한 임베딩을 생성하고 FAISS를 사용하여 벡터 저장소를 생성
+def get_embedding():
+    # model_name = "BAAI/bge-m3"
+    # model_kwargs = {"device": "cpu"}
+    # encode_kwargs = {"normalize_embeddings": True}
+    # hf = HuggingFaceBgeEmbeddings(
+    #     model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
+    # )
+    # return hf
+    return OpenAIEmbeddings()
+
+#주어진 텍스트 청크에 대한 임베딩을 생성하고 Chroma를 사용하여 벡터 저장소를 생성
 def get_vectorstore(text_chunks):
-    # embeddings = SentenceTransformerEmbeddings(model_name='all-MiniLM-L6-v2')
-    # vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-    vectorstore = Chroma.from_documents(documents=text_chunks, embedding=OpenAIEmbeddings())
-    return vectorstore
+    return Chroma.from_documents(documents=text_chunks, embedding=get_embedding())
 
 #주어진 벡터 저장소로 대화 체인을 초기화
 def get_conversation_chain(vectorstore):
@@ -94,12 +94,13 @@ user_upload = st.file_uploader("파일을 업로드해주세요~")
 
 if user_upload is not None:
     if st.button("Upload"):
-        with st.spinner("처리중.."):
+        with st.spinner('PDF File 업로드 중입니다...'):
             pdf_file_name = save_pdf_file(user_upload)
         with st.spinner('Document를 읽어들이는 중입니다...'):
             document = pdf_loader(pdf_file_name)
             split_docs = split_document(document)
-            # PDF 텍스트 저장을 위해 FAISS 벡터 저장소 만들기
+        with st.spinner('Vector DB를 구축하는 중입니다...'):
+            # PDF 텍스트 저장을 위해 Chroma 만들기
             vectorstore = get_vectorstore(split_docs)
             # 대화 체인 만들기
             st.session_state.conversation = get_conversation_chain(vectorstore)
